@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
 builder.Services.AddScoped<DatabaseService>();
+builder.Services.AddLogging();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -27,7 +28,7 @@ app.UseHttpsRedirection();
 // Простая аутентификация через header X-User-ID (для демонстрации)
 // В реальном приложении используйте JWT токены
 
-#region Accounts Endpoints
+ Accounts Endpoints
 
 app.MapPost("/api/accounts/register", async (
     [FromBody] CreateAccountRequest request,
@@ -40,11 +41,18 @@ app.MapPost("/api/accounts/register", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("RegisterAccount")
 .WithTags("Accounts")
+.WithSummary("Регистрация нового пользователя")
+.WithDescription("Создает новую учетную запись и профиль пользователя. Пароль хешируется с помощью BCrypt.")
 .Produces(201)
 .Produces(400);
 
@@ -76,11 +84,18 @@ app.MapPost("/api/accounts/login", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("Login")
 .WithTags("Accounts")
+.WithSummary("Вход в систему")
+.WithDescription("Аутентификация пользователя по логину и паролю. Обновляет время последнего входа.")
 .Produces<LoginResponse>()
 .Produces(401);
 
@@ -95,17 +110,22 @@ app.MapDelete("/api/accounts/{accountId}", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("DeleteAccount")
 .WithTags("Accounts")
+.WithSummary("Мягкое удаление аккаунта")
+.WithDescription("Выполняет мягкое удаление аккаунта (soft delete). Деактивирует профиль и закрывает все активные посты пользователя.")
 .Produces(204)
 .Produces(400);
 
-#endregion
-
-#region UserProfiles Endpoints
+ UserProfiles Endpoints
 
 app.MapGet("/api/users/{accountId}/profile", async (
     long accountId,
@@ -122,12 +142,20 @@ app.MapGet("/api/users/{accountId}/profile", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("GetUserProfile")
 .WithTags("UserProfiles")
-.Produces<UserProfileDto>();
+.WithSummary("Получить профиль пользователя")
+.WithDescription("Возвращает информацию о профиле пользователя по его AccountID.")
+.Produces<UserProfileDto>()
+.Produces(404);
 
 app.MapPut("/api/users/{accountId}/profile", async (
     long accountId,
@@ -142,17 +170,22 @@ app.MapPut("/api/users/{accountId}/profile", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("UpdateUserProfile")
 .WithTags("UserProfiles")
+.WithSummary("Обновить профиль пользователя")
+.WithDescription("Обновляет информацию профиля пользователя и время последнего визита.")
 .Produces(204)
 .Produces(400);
 
-#endregion
-
-#region UserContacts Endpoints
+ UserContacts Endpoints
 
 app.MapPost("/api/users/{accountId}/contacts", async (
     long accountId,
@@ -166,11 +199,18 @@ app.MapPost("/api/users/{accountId}/contacts", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("CreateUserContact")
 .WithTags("UserContacts")
+.WithSummary("Добавить контакт пользователя")
+.WithDescription("Добавляет новый контакт для пользователя (email, телефон, Telegram и т.д.) с настройкой публичности.")
 .Produces(201)
 .Produces(400);
 
@@ -186,16 +226,21 @@ app.MapGet("/api/users/{accountId}/contacts", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("GetUserContacts")
 .WithTags("UserContacts")
+.WithSummary("Получить контакты пользователя")
+.WithDescription("Возвращает список контактов пользователя. Параметр publicOnly позволяет получить только публичные контакты.")
 .Produces<List<UserContactDto>>();
 
-#endregion
-
-#region Skills Endpoints
+ Skills Endpoints
 
 app.MapGet("/api/skills/categories", async (DatabaseService db) =>
 {
@@ -206,11 +251,18 @@ app.MapGet("/api/skills/categories", async (DatabaseService db) =>
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("GetSkillCategories")
 .WithTags("Skills")
+.WithSummary("Получить категории навыков")
+.WithDescription("Возвращает список всех категорий навыков (Mathematics, Programming, Languages и т.д.).")
 .Produces<List<SkillCategoryDto>>();
 
 app.MapGet("/api/skills/levels", async (DatabaseService db) =>
@@ -222,11 +274,18 @@ app.MapGet("/api/skills/levels", async (DatabaseService db) =>
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("GetSkillLevels")
 .WithTags("Skills")
+.WithSummary("Получить уровни навыков")
+.WithDescription("Возвращает список уровней владения навыком (Beginner, Intermediate, Advanced, Expert).")
 .Produces<List<SkillLevelDto>>();
 
 app.MapGet("/api/skills", async (long? categoryId, DatabaseService db) =>
@@ -238,11 +297,18 @@ app.MapGet("/api/skills", async (long? categoryId, DatabaseService db) =>
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("GetSkills")
 .WithTags("Skills")
+.WithSummary("Получить список навыков")
+.WithDescription("Возвращает список навыков из каталога. Опционально фильтрует по categoryId.")
 .Produces<List<SkillCatalogDto>>();
 
 app.MapPost("/api/users/{accountId}/skills", async (
@@ -257,11 +323,18 @@ app.MapPost("/api/users/{accountId}/skills", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("AddUserSkill")
 .WithTags("Skills")
+.WithSummary("Добавить навык пользователю")
+.WithDescription("Добавляет навык пользователю с указанием уровня владения и опыта. Если навык уже существует, обновляет его.")
 .Produces(201)
 .Produces(400);
 
@@ -276,11 +349,18 @@ app.MapGet("/api/users/{accountId}/skills", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("GetUserSkills")
 .WithTags("Skills")
+.WithSummary("Получить навыки пользователя")
+.WithDescription("Возвращает список всех навыков пользователя с информацией о категориях и уровнях владения.")
 .Produces<List<UserSkillDto>>();
 
 app.MapGet("/api/skills/{skillName}/users", async (
@@ -295,16 +375,21 @@ app.MapGet("/api/skills/{skillName}/users", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("SearchUsersBySkill")
 .WithTags("Skills")
+.WithSummary("Поиск пользователей по навыку")
+.WithDescription("Ищет всех пользователей, владеющих указанным навыком. Опционально фильтрует по минимальному уровню (minLevelRank).")
 .Produces<List<UserProfileDto>>();
 
-#endregion
-
-#region Education Endpoints
+ Education Endpoints
 
 app.MapPost("/api/users/{accountId}/education", async (
     long accountId,
@@ -318,11 +403,18 @@ app.MapPost("/api/users/{accountId}/education", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("CreateEducation")
 .WithTags("Education")
+.WithSummary("Добавить информацию об образовании")
+.WithDescription("Добавляет запись об образовании пользователя (учебное заведение, специальность, годы обучения и т.д.).")
 .Produces(201)
 .Produces(400);
 
@@ -337,16 +429,21 @@ app.MapGet("/api/users/{accountId}/education", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("GetUserEducation")
 .WithTags("Education")
+.WithSummary("Получить образование пользователя")
+.WithDescription("Возвращает список всех записей об образовании пользователя.")
 .Produces<List<EducationDto>>();
 
-#endregion
-
-#region Proofs Endpoints
+ Proofs Endpoints
 
 app.MapPost("/api/users/{accountId}/proofs", async (
     long accountId,
@@ -360,11 +457,18 @@ app.MapPost("/api/users/{accountId}/proofs", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("CreateProof")
 .WithTags("Proofs")
+.WithSummary("Загрузить подтверждающий документ")
+.WithDescription("Загружает документ, подтверждающий навык или образование пользователя. Создает запрос на верификацию.")
 .Produces(201)
 .Produces(400);
 
@@ -379,11 +483,18 @@ app.MapGet("/api/users/{accountId}/proofs", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("GetUserProofs")
 .WithTags("Proofs")
+.WithSummary("Получить документы пользователя")
+.WithDescription("Возвращает список всех загруженных документов пользователя с их статусами верификации.")
 .Produces<List<ProofDto>>();
 
 app.MapPost("/api/proofs/{proofId}/verify", async (
@@ -404,18 +515,23 @@ app.MapPost("/api/proofs/{proofId}/verify", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("VerifyProof")
 .WithTags("Proofs")
+.WithSummary("Верифицировать документ")
+.WithDescription("Верифицирует документ администратором. Требуется заголовок X-Admin-ID. Обновляет статус навыка при одобрении.")
 .Produces(204)
 .Produces(400)
 .Produces(401);
 
-#endregion
-
-#region SkillPosts Endpoints
+ SkillPosts Endpoints
 
 app.MapPost("/api/users/{accountId}/posts", async (
     long accountId,
@@ -429,11 +545,18 @@ app.MapPost("/api/users/{accountId}/posts", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("CreateSkillPost")
 .WithTags("SkillPosts")
+.WithSummary("Создать пост о навыке")
+.WithDescription("Создает пост с предложением помощи (Offer) или запросом помощи (Request) по определенному навыку.")
 .Produces(201)
 .Produces(400);
 
@@ -450,11 +573,18 @@ app.MapGet("/api/posts", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("GetSkillPosts")
 .WithTags("SkillPosts")
+.WithSummary("Получить список постов")
+.WithDescription("Возвращает список постов о навыках. Можно фильтровать по skillId, postType (Offer/Request) и status (Active/Closed и т.д.).")
 .Produces<List<SkillPostDto>>();
 
 app.MapGet("/api/posts/{postId}", async (
@@ -479,12 +609,20 @@ app.MapGet("/api/posts/{postId}", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("GetSkillPostById")
 .WithTags("SkillPosts")
-.Produces<SkillPostDto>();
+.WithSummary("Получить пост по ID")
+.WithDescription("Возвращает пост по его ID и автоматически увеличивает счетчик просмотров.")
+.Produces<SkillPostDto>()
+.Produces(404);
 
 app.MapPut("/api/posts/{postId}/status", async (
     long postId,
@@ -498,14 +636,20 @@ app.MapPut("/api/posts/{postId}/status", async (
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        var errorMessage = ex.Message;
+        if (ex.InnerException != null)
+        {
+            errorMessage += " | Inner: " + ex.InnerException.Message;
+        }
+        return Results.BadRequest(new { error = errorMessage, stackTrace = ex.StackTrace });
     }
 })
 .WithName("UpdateSkillPostStatus")
 .WithTags("SkillPosts")
+.WithSummary("Изменить статус поста")
+.WithDescription("Изменяет статус поста (Active, Closed, Cancelled, Expired).")
 .Produces(204)
 .Produces(400);
 
-#endregion
 
 app.Run();

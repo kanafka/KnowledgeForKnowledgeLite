@@ -5,52 +5,50 @@
 ## Требования
 
 - .NET 9.0
-- MySQL 8.0+
+- PostgreSQL 12+
 - Visual Studio / Rider / VS Code
 
 ## Установка и настройка
 
-### 1. Настройка базы данных
+### 1. Настройка базы данных PostgreSQL
 
-1. Создайте базу данных MySQL и пользователя (если необходимо):
+**Рекомендуется использовать PostgreSQL** (текущая версия проекта).
+
+1. Установите PostgreSQL: https://www.postgresql.org/download/
+
+2. Создайте базу данных:
 
 ```sql
-CREATE DATABASE KnowledgeForKnowledgeLite CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'kfk_user'@'localhost' IDENTIFIED BY 'your_password';
-GRANT ALL PRIVILEGES ON KnowledgeForKnowledgeLite.* TO 'kfk_user'@'localhost';
-FLUSH PRIVILEGES;
+CREATE DATABASE KnowledgeForKnowledgeLite;
 ```
 
-2. Выполните SQL скрипты для создания таблиц:
+3. Выполните SQL скрипт для создания таблиц:
 
 ```bash
-# Создание БД и всех таблиц (полная инициализация)
-mysql -u kfk_user -p < Scripts/00_init_database.sql
-
-# Или пошагово:
-# 1. Создание БД (опционально, если БД еще не создана)
-mysql -u kfk_user -p < Scripts/01_create_database.sql
-
-# 2. Создание таблиц и заполнение справочных данных
-mysql -u kfk_user -p KnowledgeForKnowledgeLite < Scripts/00_init_database.sql
+# Подключитесь к PostgreSQL и выполните скрипт
+psql -U postgres -d KnowledgeForKnowledgeLite -f Scripts/00_init_database_postgresql.sql
 ```
 
+Или через pgAdmin:
+- Откройте Query Tool
+- Выполните содержимое файла `Scripts/00_init_database_postgresql.sql`
+
 **Описание SQL файлов:**
-- `00_init_database.sql` - Полный DDL скрипт для создания всех таблиц, индексов и справочных данных
-- `01_create_database.sql` - Создание БД (если нужно создать только БД без таблиц)
-- `02_dml_queries.sql` - Примеры DML запросов для всех функциональных требований
-- `03_transactions.sql` - Примеры транзакций для критичных операций
+- `00_init_database_postgresql.sql` - Полный DDL скрипт для PostgreSQL (создание всех таблиц, индексов и справочных данных)
+- `02_dml_queries_postgresql.sql` - DML запросы для всех функциональных требований
+- `03_transactions_postgresql.sql` - Транзакции для критичных операций
+
+**Примечание:** SQL запросы в DML и транзакциях совместимы с PostgreSQL (используется стандартный SQL синтаксис).
 
 ### 2. Настройка connection string
 
-Отредактируйте `appsettings.json` и укажите правильный connection string:
+Отредактируйте `appsettings.json` и укажите правильный connection string для PostgreSQL:
 
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Server=localhost;Database=KnowledgeForKnowledgeLite;User Id=kfk_user;Password=your_password;"
+    "DefaultConnection": "Host=localhost;Port=5432;Database=KnowledgeForKnowledgeLite;Username=postgres;Password=ВАШ_ПАРОЛЬ;"
   }
-}
 ```
 
 ### 3. Восстановление пакетов
@@ -66,9 +64,9 @@ dotnet run
 ```
 
 Приложение будет доступно по адресу:
-- HTTP: `http://localhost:5000`
-- HTTPS: `https://localhost:5001`
-- Swagger UI: `https://localhost:5001/swagger`
+- HTTP: `http://localhost:5232`
+- HTTPS: `https://localhost:7134`
+- Swagger UI: `http://localhost:5232/swagger`
 
 ## API Endpoints
 
@@ -120,7 +118,7 @@ dotnet run
 ### Регистрация пользователя
 
 ```bash
-curl -X POST "https://localhost:5001/api/accounts/register" \
+curl -X POST "http://localhost:5232/api/accounts/register" \
   -H "Content-Type: application/json" \
   -d '{
     "login": "student@university.edu",
@@ -131,7 +129,7 @@ curl -X POST "https://localhost:5001/api/accounts/register" \
 ### Вход в систему
 
 ```bash
-curl -X POST "https://localhost:5001/api/accounts/login" \
+curl -X POST "http://localhost:5232/api/accounts/login" \
   -H "Content-Type: application/json" \
   -d '{
     "login": "student@university.edu",
@@ -142,7 +140,7 @@ curl -X POST "https://localhost:5001/api/accounts/login" \
 ### Добавление навыка пользователю
 
 ```bash
-curl -X POST "https://localhost:5001/api/users/1/skills" \
+curl -X POST "http://localhost:5232/api/users/1/skills" \
   -H "Content-Type: application/json" \
   -d '{
     "skillId": 3,
@@ -154,7 +152,7 @@ curl -X POST "https://localhost:5001/api/users/1/skills" \
 ### Создание поста (предложение помощи)
 
 ```bash
-curl -X POST "https://localhost:5001/api/users/1/posts" \
+curl -X POST "http://localhost:5232/api/users/1/posts" \
   -H "Content-Type: application/json" \
   -d '{
     "skillId": 1,
@@ -187,7 +185,7 @@ curl -X POST "https://localhost:5001/api/users/2/posts" \
 
 - **Minimal API** - для создания HTTP endpoints
 - **Swagger/OpenAPI** - для документации API
-- **MySql.Data** - для прямого выполнения SQL запросов (без ORM)
+- **Npgsql** - для прямого выполнения SQL запросов к PostgreSQL (без ORM)
 - **BCrypt.Net-Next** - для хеширования паролей
 - **Транзакции** - для обеспечения атомарности операций
 

@@ -1,60 +1,35 @@
--- ============================================
--- Скрипт инициализации базы данных (DDL)
--- KnowledgeForKnowledgeLite
--- 
--- Описание: Этот скрипт создает базу данных, все таблицы, индексы, ограничения
--- и заполняет справочные данные (категории навыков, уровни навыков, примеры навыков).
--- 
--- Использование:
--- mysql -u root -p < init_database.sql
--- или выполнить через MySQL Workbench / клиент
--- 
--- Важно: Скрипт удаляет все существующие таблицы перед созданием новых!
--- Используйте только для первоначальной установки или полного пересоздания БД.
--- ============================================
-
--- Создание базы данных
-CREATE DATABASE IF NOT EXISTS KnowledgeForKnowledgeLite CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- Использование созданной базы данных
-USE KnowledgeForKnowledgeLite;
-
--- ============================================
--- Удаление существующих таблиц (в обратном порядке зависимостей)
--- ============================================
--- Внимание: Это удалит все данные из таблиц!
--- Выполняйте только при необходимости полного пересоздания БД
-DROP TABLE IF EXISTS AuditLog;
-DROP TABLE IF EXISTS VerificationRequests;
-DROP TABLE IF EXISTS SkillPosts;
-DROP TABLE IF EXISTS Proofs;
-DROP TABLE IF EXISTS Education;
-DROP TABLE IF EXISTS UserSkills;
-DROP TABLE IF EXISTS UserContacts;
-DROP TABLE IF EXISTS UserProfiles;
-DROP TABLE IF EXISTS SkillsCatalog;
-DROP TABLE IF EXISTS SkillLevels;
-DROP TABLE IF EXISTS SkillCategories;
-DROP TABLE IF EXISTS Accounts;
+CREATE DATABASE KnowledgeForKnowledgeLite;
+DROP TABLE IF EXISTS AuditLog CASCADE;
+DROP TABLE IF EXISTS VerificationRequests CASCADE;
+DROP TABLE IF EXISTS SkillPosts CASCADE;
+DROP TABLE IF EXISTS Proofs CASCADE;
+DROP TABLE IF EXISTS Education CASCADE;
+DROP TABLE IF EXISTS UserSkills CASCADE;
+DROP TABLE IF EXISTS UserContacts CASCADE;
+DROP TABLE IF EXISTS UserProfiles CASCADE;
+DROP TABLE IF EXISTS SkillsCatalog CASCADE;
+DROP TABLE IF EXISTS SkillLevels CASCADE;
+DROP TABLE IF EXISTS SkillCategories CASCADE;
+DROP TABLE IF EXISTS Accounts CASCADE;
 
 -- ============================================
 -- 1. Таблица Accounts (Аккаунты)
 -- ============================================
 CREATE TABLE Accounts (
-    AccountID BIGINT PRIMARY KEY AUTO_INCREMENT,
+    AccountID BIGSERIAL PRIMARY KEY,
     Login VARCHAR(100) NOT NULL UNIQUE,
     PasswordHash VARCHAR(255) NOT NULL,
     IsAdmin BOOLEAN NOT NULL DEFAULT FALSE,
     EmailConfirmed BOOLEAN NOT NULL DEFAULT FALSE,
-    LastLoginAt DATETIME NULL,
-    PasswordUpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    DeletedAt DATETIME NULL,
-    
-    INDEX idx_accounts_deleted_at (DeletedAt),
-    INDEX idx_accounts_is_admin (IsAdmin)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    LastLoginAt TIMESTAMP NULL,
+    PasswordUpdatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    DeletedAt TIMESTAMP NULL
+);
+
+CREATE INDEX idx_accounts_deleted_at ON Accounts(DeletedAt);
+CREATE INDEX idx_accounts_is_admin ON Accounts(IsAdmin);
 
 -- ============================================
 -- 2. Таблица UserProfiles (Профили пользователей)
@@ -65,94 +40,95 @@ CREATE TABLE UserProfiles (
     DateOfBirth DATE NULL,
     PhotoURL VARCHAR(500) NULL,
     Description TEXT NULL,
-    LastSeenOnline DATETIME NULL,
+    LastSeenOnline TIMESTAMP NULL,
     IsActive BOOLEAN NOT NULL DEFAULT TRUE,
-    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT chk_user_profiles_description_length 
         CHECK (LENGTH(Description) <= 3000),
     CONSTRAINT fk_user_profiles_account 
         FOREIGN KEY (AccountID) REFERENCES Accounts(AccountID) 
-        ON DELETE CASCADE,
-    
-    INDEX idx_user_profiles_full_name (FullName),
-    INDEX idx_user_profiles_is_active (IsActive)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ON DELETE CASCADE
+);
+
+CREATE INDEX idx_user_profiles_full_name ON UserProfiles(FullName);
+CREATE INDEX idx_user_profiles_is_active ON UserProfiles(IsActive);
 
 -- ============================================
 -- 3. Таблица UserContacts (Контакты)
 -- ============================================
 CREATE TABLE UserContacts (
-    ContactID BIGINT PRIMARY KEY AUTO_INCREMENT,
+    ContactID BIGSERIAL PRIMARY KEY,
     AccountID BIGINT NOT NULL,
     ContactType VARCHAR(50) NOT NULL,
     ContactValue VARCHAR(255) NOT NULL,
     IsPublic BOOLEAN NOT NULL DEFAULT FALSE,
-    DisplayOrder INT NOT NULL DEFAULT 0,
-    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    DisplayOrder INTEGER NOT NULL DEFAULT 0,
+    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT fk_user_contacts_account 
         FOREIGN KEY (AccountID) REFERENCES Accounts(AccountID) 
         ON DELETE CASCADE,
     CONSTRAINT chk_user_contacts_type 
-        CHECK (ContactType IN ('Email', 'Phone', 'Telegram', 'WhatsApp', 'LinkedIn', 'GitHub', 'Other')),
-    
-    INDEX idx_user_contacts_account_id (AccountID),
-    INDEX idx_user_contacts_type (ContactType, IsPublic)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        CHECK (ContactType IN ('Email', 'Phone', 'Telegram', 'WhatsApp', 'LinkedIn', 'GitHub', 'Other'))
+);
+
+CREATE INDEX idx_user_contacts_account_id ON UserContacts(AccountID);
+CREATE INDEX idx_user_contacts_type ON UserContacts(ContactType, IsPublic);
 
 -- ============================================
 -- 4. Таблица SkillCategories (Категории навыков)
 -- ============================================
 CREATE TABLE SkillCategories (
-    CategoryID BIGINT PRIMARY KEY AUTO_INCREMENT,
+    CategoryID BIGSERIAL PRIMARY KEY,
     Name VARCHAR(100) NOT NULL UNIQUE,
     Description TEXT NULL,
     IconURL VARCHAR(500) NULL,
-    DisplayOrder INT NOT NULL DEFAULT 0,
+    DisplayOrder INTEGER NOT NULL DEFAULT 0,
     IsActive BOOLEAN NOT NULL DEFAULT TRUE,
-    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
-    INDEX idx_skill_categories_active (IsActive, DisplayOrder)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_skill_categories_active ON SkillCategories(IsActive, DisplayOrder);
 
 -- ============================================
 -- 5. Таблица SkillLevels (Уровни навыков)
 -- ============================================
 CREATE TABLE SkillLevels (
-    LevelID BIGINT PRIMARY KEY AUTO_INCREMENT,
+    LevelID BIGSERIAL PRIMARY KEY,
     Name VARCHAR(50) NOT NULL UNIQUE,
-    Rank INT NOT NULL UNIQUE,
+    Rank INTEGER NOT NULL UNIQUE,
     Description TEXT NULL,
-    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
-    INDEX idx_skill_levels_rank_sort (Rank)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_skill_levels_rank_sort ON SkillLevels(Rank);
 
 -- ============================================
 -- 6. Таблица SkillsCatalog (Каталог навыков)
 -- ============================================
 CREATE TABLE SkillsCatalog (
-    SkillID BIGINT PRIMARY KEY AUTO_INCREMENT,
+    SkillID BIGSERIAL PRIMARY KEY,
     SkillName VARCHAR(100) NOT NULL,
     CategoryID BIGINT NOT NULL,
     Description TEXT NULL,
     IsActive BOOLEAN NOT NULL DEFAULT TRUE,
-    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT fk_skills_catalog_category 
         FOREIGN KEY (CategoryID) REFERENCES SkillCategories(CategoryID) 
         ON DELETE RESTRICT,
     
-    UNIQUE INDEX idx_skills_catalog_name_category (SkillName, CategoryID),
-    INDEX idx_skills_catalog_category_id (CategoryID),
-    INDEX idx_skills_catalog_active (IsActive, SkillName)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    CONSTRAINT uq_skills_catalog_name_category UNIQUE (SkillName, CategoryID)
+);
+
+CREATE INDEX idx_skills_catalog_category_id ON SkillsCatalog(CategoryID);
+CREATE INDEX idx_skills_catalog_active ON SkillsCatalog(IsActive, SkillName);
 
 -- ============================================
 -- 7. Таблица UserSkills (Навыки пользователей)
@@ -162,10 +138,10 @@ CREATE TABLE UserSkills (
     SkillID BIGINT NOT NULL,
     SkillLevelID BIGINT NOT NULL,
     IsVerified BOOLEAN NOT NULL DEFAULT FALSE,
-    VerifiedAt DATETIME NULL,
+    VerifiedAt TIMESTAMP NULL,
     ExperienceYears DECIMAL(3,1) NULL,
-    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
     PRIMARY KEY (AccountID, SkillID),
     CONSTRAINT fk_user_skills_account 
@@ -178,27 +154,27 @@ CREATE TABLE UserSkills (
         FOREIGN KEY (SkillLevelID) REFERENCES SkillLevels(LevelID) 
         ON DELETE RESTRICT,
     CONSTRAINT chk_user_skills_experience 
-        CHECK (ExperienceYears IS NULL OR (ExperienceYears >= 0 AND ExperienceYears <= 100)),
-    
-    INDEX idx_user_skills_skill_id (SkillID),
-    INDEX idx_user_skills_account_id (AccountID),
-    INDEX idx_user_skills_verified (IsVerified, SkillID)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        CHECK (ExperienceYears IS NULL OR (ExperienceYears >= 0 AND ExperienceYears <= 100))
+);
+
+CREATE INDEX idx_user_skills_skill_id ON UserSkills(SkillID);
+CREATE INDEX idx_user_skills_account_id ON UserSkills(AccountID);
+CREATE INDEX idx_user_skills_verified ON UserSkills(IsVerified, SkillID);
 
 -- ============================================
 -- 8. Таблица Education (Образование)
 -- ============================================
 CREATE TABLE Education (
-    EducationID BIGINT PRIMARY KEY AUTO_INCREMENT,
+    EducationID BIGSERIAL PRIMARY KEY,
     AccountID BIGINT NOT NULL,
     InstitutionName VARCHAR(150) NOT NULL,
     DegreeField VARCHAR(100) NOT NULL,
-    YearStarted INT NULL,
-    YearCompleted INT NULL,
+    YearStarted INTEGER NULL,
+    YearCompleted INTEGER NULL,
     DegreeLevel VARCHAR(50) NULL,
     IsCurrent BOOLEAN NOT NULL DEFAULT FALSE,
-    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT fk_education_account 
         FOREIGN KEY (AccountID) REFERENCES Accounts(AccountID) 
@@ -210,17 +186,17 @@ CREATE TABLE Education (
     CONSTRAINT chk_education_years 
         CHECK (YearCompleted IS NULL OR YearStarted IS NULL OR YearCompleted >= YearStarted),
     CONSTRAINT chk_education_degree_level 
-        CHECK (DegreeLevel IS NULL OR DegreeLevel IN ('Bachelor', 'Master', 'PhD', 'Certificate', 'Other')),
-    
-    INDEX idx_education_account_id (AccountID),
-    INDEX idx_education_year_completed (YearCompleted)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        CHECK (DegreeLevel IS NULL OR DegreeLevel IN ('Bachelor', 'Master', 'PhD', 'Certificate', 'Other'))
+);
+
+CREATE INDEX idx_education_account_id ON Education(AccountID);
+CREATE INDEX idx_education_year_completed ON Education(YearCompleted);
 
 -- ============================================
 -- 9. Таблица Proofs (Документы)
 -- ============================================
 CREATE TABLE Proofs (
-    ProofID BIGINT PRIMARY KEY AUTO_INCREMENT,
+    ProofID BIGSERIAL PRIMARY KEY,
     AccountID BIGINT NOT NULL,
     SkillID BIGINT NULL,
     EducationID BIGINT NULL,
@@ -230,11 +206,11 @@ CREATE TABLE Proofs (
     MimeType VARCHAR(100) NULL,
     Status VARCHAR(20) NOT NULL DEFAULT 'Pending',
     VerifiedBy BIGINT NULL,
-    VerifiedAt DATETIME NULL,
+    VerifiedAt TIMESTAMP NULL,
     RejectionReason TEXT NULL,
-    ExpiresAt DATETIME NULL,
-    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    ExpiresAt TIMESTAMP NULL,
+    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT fk_proofs_account 
         FOREIGN KEY (AccountID) REFERENCES Accounts(AccountID) 
@@ -251,19 +227,19 @@ CREATE TABLE Proofs (
     CONSTRAINT chk_proofs_status 
         CHECK (Status IN ('Pending', 'Approved', 'Rejected', 'Expired')),
     CONSTRAINT chk_proofs_skill_or_education 
-        CHECK (SkillID IS NOT NULL OR EducationID IS NOT NULL),
-    
-    INDEX idx_proofs_account_id (AccountID),
-    INDEX idx_proofs_skill_id (SkillID),
-    INDEX idx_proofs_status (Status, CreatedAt),
-    INDEX idx_proofs_verified_by (VerifiedBy)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        CHECK (SkillID IS NOT NULL OR EducationID IS NOT NULL)
+);
+
+CREATE INDEX idx_proofs_account_id ON Proofs(AccountID);
+CREATE INDEX idx_proofs_skill_id ON Proofs(SkillID);
+CREATE INDEX idx_proofs_status ON Proofs(Status, CreatedAt);
+CREATE INDEX idx_proofs_verified_by ON Proofs(VerifiedBy);
 
 -- ============================================
 -- 10. Таблица SkillPosts (Посты о навыках)
 -- ============================================
 CREATE TABLE SkillPosts (
-    PostID BIGINT PRIMARY KEY AUTO_INCREMENT,
+    PostID BIGSERIAL PRIMARY KEY,
     AccountID BIGINT NOT NULL,
     SkillID BIGINT NOT NULL,
     PostType VARCHAR(20) NOT NULL,
@@ -271,11 +247,11 @@ CREATE TABLE SkillPosts (
     Details TEXT NOT NULL,
     Status VARCHAR(20) NOT NULL DEFAULT 'Active',
     ContactPreference VARCHAR(50) NULL,
-    ExpiresAt DATETIME NULL,
-    ViewsCount INT NOT NULL DEFAULT 0,
-    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    DeletedAt DATETIME NULL,
+    ExpiresAt TIMESTAMP NULL,
+    ViewsCount INTEGER NOT NULL DEFAULT 0,
+    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    DeletedAt TIMESTAMP NULL,
     
     CONSTRAINT fk_skill_posts_account 
         FOREIGN KEY (AccountID) REFERENCES Accounts(AccountID) 
@@ -288,30 +264,30 @@ CREATE TABLE SkillPosts (
     CONSTRAINT chk_skill_posts_status 
         CHECK (Status IN ('Active', 'Closed', 'Cancelled', 'Expired')),
     CONSTRAINT chk_skill_posts_details_length 
-        CHECK (LENGTH(Details) <= 5000),
-    
-    INDEX idx_skill_posts_skill_status (SkillID, Status),
-    INDEX idx_skill_posts_type (PostType, Status),
-    INDEX idx_skill_posts_account_id (AccountID),
-    INDEX idx_skill_posts_created_at (CreatedAt DESC),
-    INDEX idx_skill_posts_deleted_at (DeletedAt)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        CHECK (LENGTH(Details) <= 5000)
+);
+
+CREATE INDEX idx_skill_posts_skill_status ON SkillPosts(SkillID, Status);
+CREATE INDEX idx_skill_posts_type ON SkillPosts(PostType, Status);
+CREATE INDEX idx_skill_posts_account_id ON SkillPosts(AccountID);
+CREATE INDEX idx_skill_posts_created_at ON SkillPosts(CreatedAt DESC);
+CREATE INDEX idx_skill_posts_deleted_at ON SkillPosts(DeletedAt);
 
 -- ============================================
 -- 11. Таблица VerificationRequests (Запросы на верификацию)
 -- ============================================
 CREATE TABLE VerificationRequests (
-    RequestID BIGINT PRIMARY KEY AUTO_INCREMENT,
+    RequestID BIGSERIAL PRIMARY KEY,
     AccountID BIGINT NOT NULL,
     ProofID BIGINT NOT NULL,
     RequestType VARCHAR(30) NOT NULL,
     Status VARCHAR(20) NOT NULL DEFAULT 'Pending',
     RequestMessage TEXT NULL,
     ReviewNotes TEXT NULL,
-    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     ReviewedBy BIGINT NULL,
-    ReviewedAt DATETIME NULL,
-    UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    ReviewedAt TIMESTAMP NULL,
+    UpdatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT fk_verification_requests_account 
         FOREIGN KEY (AccountID) REFERENCES Accounts(AccountID) 
@@ -325,41 +301,41 @@ CREATE TABLE VerificationRequests (
     CONSTRAINT chk_verification_requests_type 
         CHECK (RequestType IN ('SkillVerification', 'EducationVerification', 'ProfileVerification')),
     CONSTRAINT chk_verification_requests_status 
-        CHECK (Status IN ('Pending', 'InReview', 'Approved', 'Rejected', 'Cancelled')),
-    
-    INDEX idx_verification_requests_account_id (AccountID),
-    INDEX idx_verification_requests_proof_id (ProofID),
-    INDEX idx_verification_requests_status (Status, CreatedAt),
-    INDEX idx_verification_requests_reviewed_by (ReviewedBy)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        CHECK (Status IN ('Pending', 'InReview', 'Approved', 'Rejected', 'Cancelled'))
+);
+
+CREATE INDEX idx_verification_requests_account_id ON VerificationRequests(AccountID);
+CREATE INDEX idx_verification_requests_proof_id ON VerificationRequests(ProofID);
+CREATE INDEX idx_verification_requests_status ON VerificationRequests(Status, CreatedAt);
+CREATE INDEX idx_verification_requests_reviewed_by ON VerificationRequests(ReviewedBy);
 
 -- ============================================
 -- 12. Таблица AuditLog (Журнал аудита)
 -- ============================================
 CREATE TABLE AuditLog (
-    LogID BIGINT PRIMARY KEY AUTO_INCREMENT,
+    LogID BIGSERIAL PRIMARY KEY,
     ActorAccountID BIGINT NULL,
     Action VARCHAR(100) NOT NULL,
     EntityType VARCHAR(50) NOT NULL,
     EntityID BIGINT NULL,
-    Details JSON NULL,
+    Details JSONB NULL,
     IPAddress VARCHAR(45) NULL,
     UserAgent VARCHAR(500) NULL,
     Result VARCHAR(20) NULL,
     ErrorMessage TEXT NULL,
-    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT fk_audit_log_actor 
         FOREIGN KEY (ActorAccountID) REFERENCES Accounts(AccountID) 
         ON DELETE SET NULL,
     CONSTRAINT chk_audit_log_result 
-        CHECK (Result IS NULL OR Result IN ('Success', 'Failure', 'Error')),
-    
-    INDEX idx_audit_log_actor (ActorAccountID, CreatedAt DESC),
-    INDEX idx_audit_log_entity (EntityType, EntityID),
-    INDEX idx_audit_log_action (Action, CreatedAt DESC),
-    INDEX idx_audit_log_created_at (CreatedAt DESC)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        CHECK (Result IS NULL OR Result IN ('Success', 'Failure', 'Error'))
+);
+
+CREATE INDEX idx_audit_log_actor ON AuditLog(ActorAccountID, CreatedAt DESC);
+CREATE INDEX idx_audit_log_entity ON AuditLog(EntityType, EntityID);
+CREATE INDEX idx_audit_log_action ON AuditLog(Action, CreatedAt DESC);
+CREATE INDEX idx_audit_log_created_at ON AuditLog(CreatedAt DESC);
 
 -- ============================================
 -- Заполнение справочных данных
@@ -389,7 +365,5 @@ INSERT INTO SkillsCatalog (SkillName, CategoryID, Description) VALUES
 ('Java Programming', (SELECT CategoryID FROM SkillCategories WHERE Name = 'Programming'), 'Программирование на Java'),
 ('English Language', (SELECT CategoryID FROM SkillCategories WHERE Name = 'Languages'), 'Английский язык'),
 ('German Language', (SELECT CategoryID FROM SkillCategories WHERE Name = 'Languages'), 'Немецкий язык');
-
-
 
 

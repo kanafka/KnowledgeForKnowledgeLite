@@ -1,9 +1,9 @@
 -- ============================================
--- SQL DML запросы, реализующие функциональные требования
+-- SQL DML запросы для PostgreSQL, реализующие функциональные требования
 -- KnowledgeForKnowledgeLite
 -- 
 -- Описание: Этот файл содержит все DML запросы (SELECT, INSERT, UPDATE, DELETE),
--- необходимые для реализации функциональных требований системы.
+-- необходимые для реализации функциональных требований системы (PostgreSQL версия).
 -- 
 -- Разделы соответствуют разделам из пояснительной записки (раздел 10)
 -- ============================================
@@ -15,14 +15,17 @@
 -- FR-1: Регистрация нового пользователя
 -- Описание: Создание новой учетной записи и профиля пользователя
 -- Использование: Выполнить в транзакции для обеспечения атомарности
+-- В PostgreSQL используем RETURNING для получения ID
 
--- Шаг 1: Регистрация пользователя
+-- Шаг 1: Регистрация пользователя (возвращает AccountID)
 INSERT INTO Accounts (Login, PasswordHash, EmailConfirmed, CreatedAt)
-VALUES ('student@university.edu', '$2b$10$hashedpassword', FALSE, NOW());
+VALUES ('student@university.edu', '$2b$10$hashedpassword', FALSE, CURRENT_TIMESTAMP)
+RETURNING AccountID;
 
--- Шаг 2: Создание профиля при регистрации
+-- Шаг 2: Создание профиля при регистрации (используем полученный AccountID)
+-- В реальном приложении AccountID берется из предыдущего запроса
 INSERT INTO UserProfiles (AccountID, FullName, IsActive, CreatedAt)
-VALUES (LAST_INSERT_ID(), 'Иван Иванов', TRUE, NOW());
+VALUES (1, 'Иван Иванов', TRUE, CURRENT_TIMESTAMP);
 
 -- ============================================
 
@@ -41,7 +44,7 @@ WHERE Login = 'student@university.edu'
 -- Описание: Обновление времени последнего успешного входа пользователя
 
 UPDATE Accounts
-SET LastLoginAt = NOW()
+SET LastLoginAt = CURRENT_TIMESTAMP
 WHERE AccountID = 1;
 
 -- ============================================
@@ -51,7 +54,7 @@ WHERE AccountID = 1;
 -- Примечание: Для полного удаления используется транзакция (см. transactions.sql)
 
 UPDATE Accounts
-SET DeletedAt = NOW()
+SET DeletedAt = CURRENT_TIMESTAMP
 WHERE AccountID = 1;
 
 -- ============================================
@@ -66,7 +69,7 @@ SET FullName = 'Иван Петров',
     DateOfBirth = '2000-01-15',
     PhotoURL = 'https://example.com/photo.jpg',
     Description = 'Студент 3 курса, изучаю программирование',
-    UpdatedAt = NOW()
+    UpdatedAt = CURRENT_TIMESTAMP
 WHERE AccountID = 1;
 
 -- ============================================
@@ -85,7 +88,7 @@ VALUES (1, 'Email', 'ivan@example.com', TRUE, 1),
 -- Описание: Обновление времени последнего визита пользователя
 
 UPDATE UserProfiles
-SET LastSeenOnline = NOW()
+SET LastSeenOnline = CURRENT_TIMESTAMP
 WHERE AccountID = 1;
 
 -- ============================================
@@ -94,19 +97,23 @@ WHERE AccountID = 1;
 
 -- FR-10: Добавление навыка пользователю
 -- Описание: Добавление навыка пользователю с указанием уровня владения
--- Примечание: Использует ON DUPLICATE KEY UPDATE для обновления при дубликате
+-- В PostgreSQL используем ON CONFLICT для обработки дубликатов
 
--- Шаг 1: Получение SkillID и LevelID
-SET @skill_id = (SELECT SkillID FROM SkillsCatalog WHERE SkillName = 'Python Programming');
-SET @level_id = (SELECT LevelID FROM SkillLevels WHERE Name = 'Intermediate');
-
--- Шаг 2: Добавление навыка
+-- Добавление навыка (с обработкой конфликтов)
 INSERT INTO UserSkills (AccountID, SkillID, SkillLevelID, IsVerified, ExperienceYears, CreatedAt)
-VALUES (1, @skill_id, @level_id, FALSE, 2.5, NOW())
-ON DUPLICATE KEY UPDATE
-    SkillLevelID = @level_id,
-    ExperienceYears = 2.5,
-    UpdatedAt = NOW();
+VALUES (
+    1, 
+    (SELECT SkillID FROM SkillsCatalog WHERE SkillName = 'Python Programming'),
+    (SELECT LevelID FROM SkillLevels WHERE Name = 'Intermediate'),
+    FALSE, 
+    2.5, 
+    CURRENT_TIMESTAMP
+)
+ON CONFLICT (AccountID, SkillID) 
+DO UPDATE SET
+    SkillLevelID = EXCLUDED.SkillLevelID,
+    ExperienceYears = EXCLUDED.ExperienceYears,
+    UpdatedAt = CURRENT_TIMESTAMP;
 
 -- ============================================
 
@@ -136,8 +143,6 @@ ORDER BY cat.DisplayOrder, sc.SkillName;
 -- FR-15: Загрузка подтверждающего документа
 -- Описание: Добавление документа, подтверждающего навык пользователя
 
-SET @skill_id = (SELECT SkillID FROM SkillsCatalog WHERE SkillName = 'Python Programming');
-
 INSERT INTO Proofs (
     AccountID, 
     SkillID, 
@@ -150,14 +155,15 @@ INSERT INTO Proofs (
 )
 VALUES (
     1, 
-    @skill_id, 
+    (SELECT SkillID FROM SkillsCatalog WHERE SkillName = 'Python Programming'), 
     'https://storage.example.com/proofs/certificate_123.pdf',
     'Python_Certificate.pdf',
     2048576,
     'application/pdf',
     'Pending',
-    NOW()
-);
+    CURRENT_TIMESTAMP
+)
+RETURNING ProofID;
 
 -- ============================================
 
@@ -169,15 +175,15 @@ VALUES (
 UPDATE Proofs
 SET Status = 'Approved',
     VerifiedBy = 999, -- ID администратора
-    VerifiedAt = NOW(),
-    UpdatedAt = NOW()
+    VerifiedAt = CURRENT_TIMESTAMP,
+    UpdatedAt = CURRENT_TIMESTAMP
 WHERE ProofID = 1;
 
 -- Шаг 2: Обновление статуса навыка пользователя
 UPDATE UserSkills
 SET IsVerified = TRUE,
-    VerifiedAt = NOW(),
-    UpdatedAt = NOW()
+    VerifiedAt = CURRENT_TIMESTAMP,
+    UpdatedAt = CURRENT_TIMESTAMP
 WHERE AccountID = 1 
   AND SkillID = (SELECT SkillID FROM Proofs WHERE ProofID = 1);
 
@@ -223,8 +229,9 @@ VALUES (
     2022,
     'Bachelor',
     FALSE,
-    NOW()
-);
+    CURRENT_TIMESTAMP
+)
+RETURNING EducationID;
 
 -- ============================================
 -- 10.6. Публикация предложений и запросов (FR-21, FR-22, FR-23, FR-24)
@@ -232,8 +239,6 @@ VALUES (
 
 -- FR-21: Публикация предложения (Offer)
 -- Описание: Создание поста с предложением помощи по навыку
-
-SET @skill_id = (SELECT SkillID FROM SkillsCatalog WHERE SkillName = 'Linear Algebra');
 
 INSERT INTO SkillPosts (
     AccountID,
@@ -248,22 +253,21 @@ INSERT INTO SkillPosts (
 )
 VALUES (
     1,
-    @skill_id,
+    (SELECT SkillID FROM SkillsCatalog WHERE SkillName = 'Linear Algebra'),
     'Offer',
     'Помощь с линейной алгеброй',
     'Готов помочь с решением задач по линейной алгебре. Изучаю предмет на отлично, могу объяснить сложные темы простым языком.',
     'Active',
     'Telegram',
-    DATE_ADD(NOW(), INTERVAL 30 DAY),
-    NOW()
-);
+    CURRENT_TIMESTAMP + INTERVAL '30 days',
+    CURRENT_TIMESTAMP
+)
+RETURNING PostID;
 
 -- ============================================
 
 -- FR-22: Публикация запроса (Request)
 -- Описание: Создание поста с запросом помощи по навыку
-
-SET @skill_id = (SELECT SkillID FROM SkillsCatalog WHERE SkillName = 'Mathematical Analysis');
 
 INSERT INTO SkillPosts (
     AccountID,
@@ -278,15 +282,16 @@ INSERT INTO SkillPosts (
 )
 VALUES (
     2,
-    @skill_id,
+    (SELECT SkillID FROM SkillsCatalog WHERE SkillName = 'Mathematical Analysis'),
     'Request',
     'Нужна помощь с математическим анализом',
     'Ищу студента, который хорошо разбирается в матанализе и готов помочь с подготовкой к экзамену. Взамен могу помочь с программированием на Python.',
     'Active',
     'Email',
-    DATE_ADD(NOW(), INTERVAL 14 DAY),
-    NOW()
-);
+    CURRENT_TIMESTAMP + INTERVAL '14 days',
+    CURRENT_TIMESTAMP
+)
+RETURNING PostID;
 
 -- ============================================
 
@@ -322,7 +327,7 @@ ORDER BY sp.CreatedAt DESC;
 
 UPDATE SkillPosts
 SET Status = 'Closed',
-    UpdatedAt = NOW()
+    UpdatedAt = CURRENT_TIMESTAMP
 WHERE PostID = 1;
 
 -- ============================================
@@ -350,7 +355,7 @@ JOIN SkillLevels sl ON us.SkillLevelID = sl.LevelID
 WHERE sc.SkillName = 'Python Programming'
   AND a.DeletedAt IS NULL
   AND up.IsActive = TRUE
-ORDER BY sl.Rank DESC, us.IsVerified DESC, up.LastSeenOnline DESC;
+ORDER BY sl.Rank DESC, us.IsVerified DESC, up.LastSeenOnline DESC NULLS LAST;
 
 -- ============================================
 
@@ -399,10 +404,11 @@ VALUES (
     '192.168.1.1',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
     'Success',
-    NOW()
+    CURRENT_TIMESTAMP
 );
 
 -- Пример 2: Логирование добавления навыка
+-- В PostgreSQL используем jsonb_build_object для создания JSON
 INSERT INTO AuditLog (
     ActorAccountID,
     Action,
@@ -416,13 +422,18 @@ VALUES (
     1,
     'SkillAdded',
     'UserSkill',
-    LAST_INSERT_ID(),
-    JSON_OBJECT('SkillID', 5, 'SkillName', 'Python Programming', 'Level', 'Intermediate'),
+    (SELECT MAX(ContactID) FROM UserContacts), -- пример получения последнего ID
+    jsonb_build_object(
+        'SkillID', 5, 
+        'SkillName', 'Python Programming', 
+        'Level', 'Intermediate'
+    ),
     'Success',
-    NOW()
+    CURRENT_TIMESTAMP
 );
 
 -- ============================================
 -- Конец файла
 -- ============================================
+
 

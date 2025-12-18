@@ -1,4 +1,4 @@
-using MySql.Data.MySqlClient;
+using Npgsql;
 using KnowledgeForKnowledgeLite.Models;
 using BCrypt.Net;
 
@@ -9,7 +9,7 @@ public class DatabaseService
     private readonly string _connectionString;
 
     // Helper methods для чтения данных из reader
-    private static T GetValue<T>(MySqlDataReader reader, string columnName, T? defaultValue = default)
+    private static T GetValue<T>(NpgsqlDataReader reader, string columnName, T? defaultValue = default)
     {
         var value = reader[columnName];
         if (value == DBNull.Value)
@@ -17,7 +17,7 @@ public class DatabaseService
         return (T)Convert.ChangeType(value, typeof(T));
     }
     
-    private static T? GetNullableValue<T>(MySqlDataReader reader, string columnName) where T : struct
+    private static T? GetNullableValue<T>(NpgsqlDataReader reader, string columnName) where T : struct
     {
         var value = reader[columnName];
         if (value == DBNull.Value)
@@ -25,7 +25,7 @@ public class DatabaseService
         return (T)Convert.ChangeType(value, typeof(T));
     }
     
-    private static string? GetStringOrNull(MySqlDataReader reader, string columnName)
+    private static string? GetStringOrNull(NpgsqlDataReader reader, string columnName)
     {
         var value = reader[columnName];
         return value == DBNull.Value ? null : value.ToString();
@@ -35,13 +35,24 @@ public class DatabaseService
     {
         _connectionString = configuration.GetConnectionString("DefaultConnection") 
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+        
+        // Логирование connection string (без пароля) для отладки
+        var safeConnectionString = _connectionString;
+        if (safeConnectionString.Contains("Password="))
+        {
+            var passwordIndex = safeConnectionString.IndexOf("Password=") + 9;
+            var nextSemicolon = safeConnectionString.IndexOf(";", passwordIndex);
+            if (nextSemicolon > passwordIndex)
+            {
+                safeConnectionString = safeConnectionString.Substring(0, passwordIndex) + "***" + safeConnectionString.Substring(nextSemicolon);
+            }
+        }
+        Console.WriteLine($"[DatabaseService] Connection string configured: {safeConnectionString}");
     }
-
-    #region Accounts
 
     public async Task<long> CreateAccountAsync(CreateAccountRequest request)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
             using var transaction = connection.BeginTransaction();
@@ -53,21 +64,20 @@ public class DatabaseService
             
             var insertAccountSql = @"
                 INSERT INTO Accounts (Login, PasswordHash, EmailConfirmed, CreatedAt)
-                VALUES (@Login, @PasswordHash, FALSE, NOW())";
+                VALUES (@Login, @PasswordHash, FALSE, NOW())
+                RETURNING AccountID";
             
-            using var accountCmd = new MySqlCommand(insertAccountSql, connection, transaction);
+            using var accountCmd = new NpgsqlCommand(insertAccountSql, connection, transaction);
             accountCmd.Parameters.AddWithValue("@Login", request.Login);
             accountCmd.Parameters.AddWithValue("@PasswordHash", passwordHash);
-            await accountCmd.ExecuteNonQueryAsync();
-            
-            var accountId = accountCmd.LastInsertedId;
+            var accountId = Convert.ToInt64(await accountCmd.ExecuteScalarAsync() ?? throw new Exception("Failed to create account"));
             
             // Создание профиля
             var insertProfileSql = @"
                 INSERT INTO UserProfiles (AccountID, IsActive, CreatedAt)
                 VALUES (@AccountID, TRUE, NOW())";
             
-            using var profileCmd = new MySqlCommand(insertProfileSql, connection, transaction);
+            using var profileCmd = new NpgsqlCommand(insertProfileSql, connection, transaction);
             profileCmd.Parameters.AddWithValue("@AccountID", accountId);
             await profileCmd.ExecuteNonQueryAsync();
             
@@ -76,7 +86,7 @@ public class DatabaseService
                 INSERT INTO AuditLog (ActorAccountID, Action, EntityType, EntityID, Result, CreatedAt)
                 VALUES (@ActorAccountID, 'UserRegistered', 'Account', @EntityID, 'Success', NOW())";
             
-            using var logCmd = new MySqlCommand(insertLogSql, connection, transaction);
+            using var logCmd = new NpgsqlCommand(insertLogSql, connection, transaction);
             logCmd.Parameters.AddWithValue("@ActorAccountID", accountId);
             logCmd.Parameters.AddWithValue("@EntityID", accountId);
             await logCmd.ExecuteNonQueryAsync();
@@ -93,7 +103,7 @@ public class DatabaseService
 
     public async Task<AccountDto?> GetAccountByLoginAsync(string login)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = @"
@@ -101,7 +111,7 @@ public class DatabaseService
             FROM Accounts
             WHERE Login = @Login AND DeletedAt IS NULL";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@Login", login);
         
         using var reader = await cmd.ExecuteReaderAsync();
@@ -122,12 +132,12 @@ public class DatabaseService
 
     public async Task<string?> GetPasswordHashAsync(string login)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = "SELECT PasswordHash FROM Accounts WHERE Login = @Login AND DeletedAt IS NULL";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@Login", login);
         
         var result = await cmd.ExecuteScalarAsync();
@@ -136,19 +146,19 @@ public class DatabaseService
 
     public async Task UpdateLastLoginAsync(long accountId)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = "UPDATE Accounts SET LastLoginAt = NOW() WHERE AccountID = @AccountID";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@AccountID", accountId);
         await cmd.ExecuteNonQueryAsync();
     }
 
     public async Task SoftDeleteAccountAsync(long accountId)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         using var transaction = connection.BeginTransaction();
@@ -157,13 +167,13 @@ public class DatabaseService
         {
             // Мягкое удаление аккаунта
             var updateAccountSql = "UPDATE Accounts SET DeletedAt = NOW(), UpdatedAt = NOW() WHERE AccountID = @AccountID";
-            using var accountCmd = new MySqlCommand(updateAccountSql, connection, transaction);
+            using var accountCmd = new NpgsqlCommand(updateAccountSql, connection, transaction);
             accountCmd.Parameters.AddWithValue("@AccountID", accountId);
             await accountCmd.ExecuteNonQueryAsync();
             
             // Деактивация профиля
             var updateProfileSql = "UPDATE UserProfiles SET IsActive = FALSE, UpdatedAt = NOW() WHERE AccountID = @AccountID";
-            using var profileCmd = new MySqlCommand(updateProfileSql, connection, transaction);
+            using var profileCmd = new NpgsqlCommand(updateProfileSql, connection, transaction);
             profileCmd.Parameters.AddWithValue("@AccountID", accountId);
             await profileCmd.ExecuteNonQueryAsync();
             
@@ -172,7 +182,7 @@ public class DatabaseService
                 UPDATE SkillPosts 
                 SET Status = 'Closed', DeletedAt = NOW(), UpdatedAt = NOW() 
                 WHERE AccountID = @AccountID AND Status = 'Active' AND DeletedAt IS NULL";
-            using var postsCmd = new MySqlCommand(updatePostsSql, connection, transaction);
+            using var postsCmd = new NpgsqlCommand(updatePostsSql, connection, transaction);
             postsCmd.Parameters.AddWithValue("@AccountID", accountId);
             await postsCmd.ExecuteNonQueryAsync();
             
@@ -180,7 +190,7 @@ public class DatabaseService
             var insertLogSql = @"
                 INSERT INTO AuditLog (ActorAccountID, Action, EntityType, EntityID, Result, CreatedAt)
                 VALUES (@ActorAccountID, 'AccountDeleted', 'Account', @EntityID, 'Success', NOW())";
-            using var logCmd = new MySqlCommand(insertLogSql, connection, transaction);
+            using var logCmd = new NpgsqlCommand(insertLogSql, connection, transaction);
             logCmd.Parameters.AddWithValue("@ActorAccountID", accountId);
             logCmd.Parameters.AddWithValue("@EntityID", accountId);
             await logCmd.ExecuteNonQueryAsync();
@@ -194,13 +204,9 @@ public class DatabaseService
         }
     }
 
-    #endregion
-
-    #region UserProfiles
-
     public async Task<UserProfileDto?> GetUserProfileAsync(long accountId)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = @"
@@ -209,7 +215,7 @@ public class DatabaseService
             FROM UserProfiles
             WHERE AccountID = @AccountID";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@AccountID", accountId);
         
         using var reader = await cmd.ExecuteReaderAsync();
@@ -232,7 +238,7 @@ public class DatabaseService
 
     public async Task UpdateUserProfileAsync(long accountId, UpdateUserProfileRequest request)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = @"
@@ -244,7 +250,7 @@ public class DatabaseService
                 UpdatedAt = NOW()
             WHERE AccountID = @AccountID";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@AccountID", accountId);
         cmd.Parameters.AddWithValue("@FullName", (object?)request.FullName ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@DateOfBirth", request.DateOfBirth.HasValue ? request.DateOfBirth.Value.ToDateTime(TimeOnly.MinValue) : DBNull.Value);
@@ -256,43 +262,41 @@ public class DatabaseService
 
     public async Task UpdateLastSeenOnlineAsync(long accountId)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = "UPDATE UserProfiles SET LastSeenOnline = NOW() WHERE AccountID = @AccountID";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@AccountID", accountId);
         await cmd.ExecuteNonQueryAsync();
     }
 
-    #endregion
-
-    #region UserContacts
+ UserContacts
 
     public async Task<long> CreateUserContactAsync(long accountId, CreateUserContactRequest request)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = @"
             INSERT INTO UserContacts (AccountID, ContactType, ContactValue, IsPublic, DisplayOrder, CreatedAt)
-            VALUES (@AccountID, @ContactType, @ContactValue, @IsPublic, @DisplayOrder, NOW())";
+            VALUES (@AccountID, @ContactType, @ContactValue, @IsPublic, @DisplayOrder, NOW())
+            RETURNING ContactID";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@AccountID", accountId);
         cmd.Parameters.AddWithValue("@ContactType", request.ContactType);
         cmd.Parameters.AddWithValue("@ContactValue", request.ContactValue);
         cmd.Parameters.AddWithValue("@IsPublic", request.IsPublic);
         cmd.Parameters.AddWithValue("@DisplayOrder", request.DisplayOrder);
         
-        await cmd.ExecuteNonQueryAsync();
-        return (long)cmd.LastInsertedId;
+        return Convert.ToInt64(await cmd.ExecuteScalarAsync() ?? throw new Exception("Failed to create contact"));
     }
 
     public async Task<List<UserContactDto>> GetUserContactsAsync(long accountId, bool publicOnly = false)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = @"
@@ -307,7 +311,7 @@ public class DatabaseService
         
         sql += " ORDER BY DisplayOrder";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@AccountID", accountId);
         
         var contacts = new List<UserContactDto>();
@@ -328,13 +332,11 @@ public class DatabaseService
         return contacts;
     }
 
-    #endregion
-
-    #region Skills
+ Skills
 
     public async Task<List<SkillCategoryDto>> GetSkillCategoriesAsync()
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = @"
@@ -343,7 +345,7 @@ public class DatabaseService
             WHERE IsActive = TRUE
             ORDER BY DisplayOrder";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         var categories = new List<SkillCategoryDto>();
         
         using var reader = await cmd.ExecuteReaderAsync();
@@ -364,7 +366,7 @@ public class DatabaseService
 
     public async Task<List<SkillLevelDto>> GetSkillLevelsAsync()
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = @"
@@ -372,7 +374,7 @@ public class DatabaseService
             FROM SkillLevels
             ORDER BY Rank";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         var levels = new List<SkillLevelDto>();
         
         using var reader = await cmd.ExecuteReaderAsync();
@@ -391,7 +393,7 @@ public class DatabaseService
 
     public async Task<List<SkillCatalogDto>> GetSkillsByCategoryAsync(long? categoryId = null)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = @"
@@ -406,7 +408,7 @@ public class DatabaseService
         
         sql += " ORDER BY SkillName";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         if (categoryId.HasValue)
         {
             cmd.Parameters.AddWithValue("@CategoryID", categoryId.Value);
@@ -431,7 +433,7 @@ public class DatabaseService
 
     public async Task AddUserSkillAsync(long accountId, CreateUserSkillRequest request)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         using var transaction = connection.BeginTransaction();
@@ -442,12 +444,13 @@ public class DatabaseService
             var insertSkillSql = @"
                 INSERT INTO UserSkills (AccountID, SkillID, SkillLevelID, IsVerified, ExperienceYears, CreatedAt)
                 VALUES (@AccountID, @SkillID, @SkillLevelID, FALSE, @ExperienceYears, NOW())
-                ON DUPLICATE KEY UPDATE
-                    SkillLevelID = @SkillLevelID,
-                    ExperienceYears = @ExperienceYears,
+                ON CONFLICT (AccountID, SkillID) 
+                DO UPDATE SET
+                    SkillLevelID = EXCLUDED.SkillLevelID,
+                    ExperienceYears = EXCLUDED.ExperienceYears,
                     UpdatedAt = NOW()";
             
-            using var skillCmd = new MySqlCommand(insertSkillSql, connection, transaction);
+            using var skillCmd = new NpgsqlCommand(insertSkillSql, connection, transaction);
             skillCmd.Parameters.AddWithValue("@AccountID", accountId);
             skillCmd.Parameters.AddWithValue("@SkillID", request.SkillID);
             skillCmd.Parameters.AddWithValue("@SkillLevelID", request.SkillLevelID);
@@ -457,9 +460,9 @@ public class DatabaseService
             // Логирование
             var insertLogSql = @"
                 INSERT INTO AuditLog (ActorAccountID, Action, EntityType, EntityID, Details, Result, CreatedAt)
-                VALUES (@ActorAccountID, 'SkillAdded', 'UserSkill', @EntityID, @Details, 'Success', NOW())";
+                VALUES (@ActorAccountID, 'SkillAdded', 'UserSkill', @EntityID, @Details::jsonb, 'Success', NOW())";
             
-            using var logCmd = new MySqlCommand(insertLogSql, connection, transaction);
+            using var logCmd = new NpgsqlCommand(insertLogSql, connection, transaction);
             logCmd.Parameters.AddWithValue("@ActorAccountID", accountId);
             logCmd.Parameters.AddWithValue("@EntityID", request.SkillID);
             
@@ -469,7 +472,7 @@ public class DatabaseService
                 SkillLevelID = request.SkillLevelID,
                 ExperienceYears = request.ExperienceYears
             });
-            logCmd.Parameters.AddWithValue("@Details", detailsJson);
+            logCmd.Parameters.AddWithValue("@Details", NpgsqlTypes.NpgsqlDbType.Jsonb, detailsJson);
             await logCmd.ExecuteNonQueryAsync();
             
             transaction.Commit();
@@ -483,7 +486,7 @@ public class DatabaseService
 
     public async Task<List<UserSkillDto>> GetUserSkillsAsync(long accountId)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = @"
@@ -504,7 +507,7 @@ public class DatabaseService
             WHERE us.AccountID = @AccountID
             ORDER BY cat.DisplayOrder, sc.SkillName";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@AccountID", accountId);
         
         var skills = new List<UserSkillDto>();
@@ -530,7 +533,7 @@ public class DatabaseService
 
     public async Task<List<UserProfileDto>> SearchUsersBySkillAsync(string skillName, int? minLevelRank = null)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = @"
@@ -559,7 +562,7 @@ public class DatabaseService
         
         sql += " ORDER BY sl.Rank DESC, up.LastSeenOnline DESC";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@SkillName", skillName);
         if (minLevelRank.HasValue)
         {
@@ -586,20 +589,19 @@ public class DatabaseService
         return users;
     }
 
-    #endregion
-
-    #region Education
+ Education
 
     public async Task<long> CreateEducationAsync(long accountId, CreateEducationRequest request)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = @"
             INSERT INTO Education (AccountID, InstitutionName, DegreeField, YearStarted, YearCompleted, DegreeLevel, IsCurrent, CreatedAt)
-            VALUES (@AccountID, @InstitutionName, @DegreeField, @YearStarted, @YearCompleted, @DegreeLevel, @IsCurrent, NOW())";
+            VALUES (@AccountID, @InstitutionName, @DegreeField, @YearStarted, @YearCompleted, @DegreeLevel, @IsCurrent, NOW())
+            RETURNING EducationID";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@AccountID", accountId);
         cmd.Parameters.AddWithValue("@InstitutionName", request.InstitutionName);
         cmd.Parameters.AddWithValue("@DegreeField", request.DegreeField);
@@ -608,13 +610,12 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@DegreeLevel", (object?)request.DegreeLevel ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@IsCurrent", request.IsCurrent);
         
-        await cmd.ExecuteNonQueryAsync();
-        return (long)cmd.LastInsertedId;
+        return Convert.ToInt64(await cmd.ExecuteScalarAsync() ?? throw new Exception("Failed to create education"));
     }
 
     public async Task<List<EducationDto>> GetUserEducationAsync(long accountId)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = @"
@@ -623,7 +624,7 @@ public class DatabaseService
             WHERE AccountID = @AccountID
             ORDER BY YearCompleted DESC, YearStarted DESC";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@AccountID", accountId);
         
         var educationList = new List<EducationDto>();
@@ -647,13 +648,11 @@ public class DatabaseService
         return educationList;
     }
 
-    #endregion
-
-    #region Proofs
+ Proofs
 
     public async Task<long> CreateProofAsync(long accountId, CreateProofRequest request)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         using var transaction = connection.BeginTransaction();
@@ -663,9 +662,10 @@ public class DatabaseService
             // Загрузка документа
             var insertProofSql = @"
                 INSERT INTO Proofs (AccountID, SkillID, EducationID, FileURL, FileName, FileSize, MimeType, Status, CreatedAt)
-                VALUES (@AccountID, @SkillID, @EducationID, @FileURL, @FileName, @FileSize, @MimeType, 'Pending', NOW())";
+                VALUES (@AccountID, @SkillID, @EducationID, @FileURL, @FileName, @FileSize, @MimeType, 'Pending', NOW())
+                RETURNING ProofID";
             
-            using var proofCmd = new MySqlCommand(insertProofSql, connection, transaction);
+            using var proofCmd = new NpgsqlCommand(insertProofSql, connection, transaction);
             proofCmd.Parameters.AddWithValue("@AccountID", accountId);
             proofCmd.Parameters.AddWithValue("@SkillID", (object?)request.SkillID ?? DBNull.Value);
             proofCmd.Parameters.AddWithValue("@EducationID", (object?)request.EducationID ?? DBNull.Value);
@@ -673,9 +673,7 @@ public class DatabaseService
             proofCmd.Parameters.AddWithValue("@FileName", (object?)request.FileName ?? DBNull.Value);
             proofCmd.Parameters.AddWithValue("@FileSize", (object?)request.FileSize ?? DBNull.Value);
             proofCmd.Parameters.AddWithValue("@MimeType", (object?)request.MimeType ?? DBNull.Value);
-            await proofCmd.ExecuteNonQueryAsync();
-            
-            var proofId = proofCmd.LastInsertedId;
+            var proofId = Convert.ToInt64(await proofCmd.ExecuteScalarAsync() ?? throw new Exception("Failed to create proof"));
             
             // Создание запроса на верификацию
             var insertRequestSql = @"
@@ -684,7 +682,7 @@ public class DatabaseService
                     CASE WHEN @SkillID IS NOT NULL THEN 'SkillVerification' ELSE 'EducationVerification' END,
                     'Pending', NOW())";
             
-            using var requestCmd = new MySqlCommand(insertRequestSql, connection, transaction);
+            using var requestCmd = new NpgsqlCommand(insertRequestSql, connection, transaction);
             requestCmd.Parameters.AddWithValue("@AccountID", accountId);
             requestCmd.Parameters.AddWithValue("@ProofID", proofId);
             requestCmd.Parameters.AddWithValue("@SkillID", (object?)request.SkillID ?? DBNull.Value);
@@ -702,7 +700,7 @@ public class DatabaseService
 
     public async Task VerifyProofAsync(long proofId, long adminId, VerifyProofRequest request)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         using var transaction = connection.BeginTransaction();
@@ -719,7 +717,7 @@ public class DatabaseService
                     UpdatedAt = NOW()
                 WHERE ProofID = @ProofID";
             
-            using var proofCmd = new MySqlCommand(updateProofSql, connection, transaction);
+            using var proofCmd = new NpgsqlCommand(updateProofSql, connection, transaction);
             proofCmd.Parameters.AddWithValue("@ProofID", proofId);
             proofCmd.Parameters.AddWithValue("@Status", request.Status);
             proofCmd.Parameters.AddWithValue("@AdminID", adminId);
@@ -738,7 +736,7 @@ public class DatabaseService
                       AND SkillID = (SELECT SkillID FROM Proofs WHERE ProofID = @ProofID)
                       AND SkillID IS NOT NULL";
                 
-                using var skillCmd = new MySqlCommand(updateSkillSql, connection, transaction);
+                using var skillCmd = new NpgsqlCommand(updateSkillSql, connection, transaction);
                 skillCmd.Parameters.AddWithValue("@ProofID", proofId);
                 await skillCmd.ExecuteNonQueryAsync();
             }
@@ -753,7 +751,7 @@ public class DatabaseService
                     UpdatedAt = NOW()
                 WHERE ProofID = @ProofID AND Status = 'Pending'";
             
-            using var requestCmd = new MySqlCommand(updateRequestSql, connection, transaction);
+            using var requestCmd = new NpgsqlCommand(updateRequestSql, connection, transaction);
             requestCmd.Parameters.AddWithValue("@ProofID", proofId);
             requestCmd.Parameters.AddWithValue("@Status", request.Status);
             requestCmd.Parameters.AddWithValue("@AdminID", adminId);
@@ -763,9 +761,9 @@ public class DatabaseService
             // Логирование
             var insertLogSql = @"
                 INSERT INTO AuditLog (ActorAccountID, Action, EntityType, EntityID, Details, Result, CreatedAt)
-                VALUES (@ActorAccountID, 'ProofVerified', 'Proof', @EntityID, @Details, 'Success', NOW())";
+                VALUES (@ActorAccountID, 'ProofVerified', 'Proof', @EntityID, @Details::jsonb, 'Success', NOW())";
             
-            using var logCmd = new MySqlCommand(insertLogSql, connection, transaction);
+            using var logCmd = new NpgsqlCommand(insertLogSql, connection, transaction);
             logCmd.Parameters.AddWithValue("@ActorAccountID", adminId);
             logCmd.Parameters.AddWithValue("@EntityID", proofId);
             
@@ -774,7 +772,7 @@ public class DatabaseService
                 ProofID = proofId,
                 Decision = request.Status
             });
-            logCmd.Parameters.AddWithValue("@Details", detailsJson);
+            logCmd.Parameters.AddWithValue("@Details", NpgsqlTypes.NpgsqlDbType.Jsonb, detailsJson);
             await logCmd.ExecuteNonQueryAsync();
             
             transaction.Commit();
@@ -788,7 +786,7 @@ public class DatabaseService
 
     public async Task<List<ProofDto>> GetUserProofsAsync(long accountId)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = @"
@@ -798,7 +796,7 @@ public class DatabaseService
             WHERE AccountID = @AccountID
             ORDER BY CreatedAt DESC";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@AccountID", accountId);
         
         var proofs = new List<ProofDto>();
@@ -827,20 +825,19 @@ public class DatabaseService
         return proofs;
     }
 
-    #endregion
-
-    #region SkillPosts
+ SkillPosts
 
     public async Task<long> CreateSkillPostAsync(long accountId, CreateSkillPostRequest request)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = @"
             INSERT INTO SkillPosts (AccountID, SkillID, PostType, Title, Details, Status, ContactPreference, ExpiresAt, CreatedAt)
-            VALUES (@AccountID, @SkillID, @PostType, @Title, @Details, 'Active', @ContactPreference, @ExpiresAt, NOW())";
+            VALUES (@AccountID, @SkillID, @PostType, @Title, @Details, 'Active', @ContactPreference, @ExpiresAt, NOW())
+            RETURNING PostID";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@AccountID", accountId);
         cmd.Parameters.AddWithValue("@SkillID", request.SkillID);
         cmd.Parameters.AddWithValue("@PostType", request.PostType);
@@ -849,13 +846,12 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@ContactPreference", (object?)request.ContactPreference ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@ExpiresAt", (object?)request.ExpiresAt ?? DBNull.Value);
         
-        await cmd.ExecuteNonQueryAsync();
-        return (long)cmd.LastInsertedId;
+        return Convert.ToInt64(await cmd.ExecuteScalarAsync() ?? throw new Exception("Failed to create post"));
     }
 
     public async Task<List<SkillPostDto>> GetSkillPostsAsync(long? skillId = null, string? postType = null, string? status = "Active")
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = @"
@@ -896,7 +892,7 @@ public class DatabaseService
         
         sql += " ORDER BY sp.CreatedAt DESC";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         if (skillId.HasValue)
         {
             cmd.Parameters.AddWithValue("@SkillID", skillId.Value);
@@ -937,7 +933,7 @@ public class DatabaseService
 
     public async Task IncrementPostViewsAsync(long postId)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         using var transaction = connection.BeginTransaction();
@@ -951,7 +947,7 @@ public class DatabaseService
                     UpdatedAt = NOW()
                 WHERE PostID = @PostID AND DeletedAt IS NULL";
             
-            using var viewsCmd = new MySqlCommand(updateViewsSql, connection, transaction);
+            using var viewsCmd = new NpgsqlCommand(updateViewsSql, connection, transaction);
             viewsCmd.Parameters.AddWithValue("@PostID", postId);
             await viewsCmd.ExecuteNonQueryAsync();
             
@@ -960,7 +956,7 @@ public class DatabaseService
                 INSERT INTO AuditLog (Action, EntityType, EntityID, Result, CreatedAt)
                 VALUES ('PostViewed', 'SkillPost', @EntityID, 'Success', NOW())";
             
-            using var logCmd = new MySqlCommand(insertLogSql, connection, transaction);
+            using var logCmd = new NpgsqlCommand(insertLogSql, connection, transaction);
             logCmd.Parameters.AddWithValue("@EntityID", postId);
             await logCmd.ExecuteNonQueryAsync();
             
@@ -975,18 +971,17 @@ public class DatabaseService
 
     public async Task UpdateSkillPostStatusAsync(long postId, string status)
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var sql = "UPDATE SkillPosts SET Status = @Status, UpdatedAt = NOW() WHERE PostID = @PostID";
         
-        using var cmd = new MySqlCommand(sql, connection);
+        using var cmd = new NpgsqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@PostID", postId);
         cmd.Parameters.AddWithValue("@Status", status);
         
         await cmd.ExecuteNonQueryAsync();
     }
 
-    #endregion
 }
 
