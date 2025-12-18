@@ -21,13 +21,25 @@ GRANT ALL PRIVILEGES ON KnowledgeForKnowledgeLite.* TO 'kfk_user'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-2. Выполните SQL скрипт для создания таблиц:
+2. Выполните SQL скрипты для создания таблиц:
 
 ```bash
-mysql -u kfk_user -p KnowledgeForKnowledgeLite < Scripts/init_database.sql
+# Создание БД и всех таблиц (полная инициализация)
+mysql -u kfk_user -p < Scripts/00_init_database.sql
+
+# Или пошагово:
+# 1. Создание БД (опционально, если БД еще не создана)
+mysql -u kfk_user -p < Scripts/01_create_database.sql
+
+# 2. Создание таблиц и заполнение справочных данных
+mysql -u kfk_user -p KnowledgeForKnowledgeLite < Scripts/00_init_database.sql
 ```
 
-Или в MySQL Workbench/клиенте выполните содержимое файла `Scripts/init_database.sql`
+**Описание SQL файлов:**
+- `00_init_database.sql` - Полный DDL скрипт для создания всех таблиц, индексов и справочных данных
+- `01_create_database.sql` - Создание БД (если нужно создать только БД без таблиц)
+- `02_dml_queries.sql` - Примеры DML запросов для всех функциональных требований
+- `03_transactions.sql` - Примеры транзакций для критичных операций
 
 ### 2. Настройка connection string
 
@@ -214,5 +226,7 @@ KnowledgeForKnowledgeLite/
 - Реализовать обработку ошибок и логирование
 - Добавить rate limiting для защиты от злоупотреблений
 - Настроить CORS политики
+
+
 
 
