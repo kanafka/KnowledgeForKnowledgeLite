@@ -19,11 +19,11 @@
 | PasswordHash | VARCHAR(255) | NOT NULL | Хэш пароля (BCrypt/Argon2) |
 | IsAdmin | BOOLEAN | NOT NULL, DEFAULT FALSE | Флаг администратора |
 | EmailConfirmed | BOOLEAN | NOT NULL, DEFAULT FALSE | Подтверждён ли email |
-| LastLoginAt | DATETIME | NULL | Время последнего входа |
-| PasswordUpdatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Когда последний раз менялся пароль |
-| CreatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата регистрации |
-| UpdatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | Время последнего обновления |
-| DeletedAt | DATETIME | NULL | Мягкое удаление (soft delete) |
+| LastLoginAt | TIMESTAMP | NULL | Время последнего входа |
+| PasswordUpdatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Когда последний раз менялся пароль |
+| CreatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата регистрации |
+| UpdatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Время последнего обновления |
+| DeletedAt | TIMESTAMP | NULL | Мягкое удаление (soft delete) |
 
 **Индексы:**
 - `UNIQUE INDEX idx_accounts_login (Login)`
@@ -49,10 +49,10 @@
 | DateOfBirth | DATE | NULL | Дата рождения |
 | PhotoURL | VARCHAR(500) | NULL | URL фотографии профиля |
 | Description | TEXT | NULL, CHECK (LENGTH(Description) <= 3000) | Описание (макс. 3000 символов) |
-| LastSeenOnline | DATETIME | NULL | Последний раз онлайн |
+| LastSeenOnline | TIMESTAMP | NULL | Последний раз онлайн |
 | IsActive | BOOLEAN | NOT NULL, DEFAULT TRUE | Активен ли профиль |
-| CreatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
-| UpdatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | Время обновления |
+| CreatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
+| UpdatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Время обновления |
 
 **Индексы:**
 - `PRIMARY KEY (AccountID)`
@@ -82,8 +82,8 @@
 | ContactValue | VARCHAR(255) | NOT NULL | Значение контакта |
 | IsPublic | BOOLEAN | NOT NULL, DEFAULT FALSE | Публичная видимость |
 | DisplayOrder | INT | NOT NULL, DEFAULT 0 | Порядок отображения |
-| CreatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
-| UpdatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | Время обновления |
+| CreatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
+| UpdatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Время обновления |
 
 **Индексы:**
 - `PRIMARY KEY (ContactID)`
@@ -113,8 +113,8 @@
 | IconURL | VARCHAR(500) | NULL | URL иконки категории |
 | DisplayOrder | INT | NOT NULL, DEFAULT 0 | Порядок отображения |
 | IsActive | BOOLEAN | NOT NULL, DEFAULT TRUE | Активна ли категория |
-| CreatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
-| UpdatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | Время обновления |
+| CreatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
+| UpdatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Время обновления |
 
 **Индексы:**
 - `PRIMARY KEY (CategoryID)`
@@ -141,8 +141,8 @@
 | CategoryID | UUID / BIGINT | FK → SkillCategories(CategoryID) ON DELETE RESTRICT, NOT NULL | Идентификатор категории |
 | Description | TEXT | NULL | Описание навыка |
 | IsActive | BOOLEAN | NOT NULL, DEFAULT TRUE | Активен ли навык |
-| CreatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
-| UpdatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | Время обновления |
+| CreatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
+| UpdatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Время обновления |
 
 **Индексы:**
 - `PRIMARY KEY (SkillID)`
@@ -170,8 +170,8 @@
 | Name | VARCHAR(50) | UNIQUE, NOT NULL | Название уровня (например, "Beginner", "Intermediate", "Advanced", "Expert") |
 | Rank | INT | UNIQUE, NOT NULL | Числовой ранг для сортировки (1, 2, 3, ...) |
 | Description | TEXT | NULL | Описание уровня |
-| CreatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
-| UpdatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | Время обновления |
+| CreatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
+| UpdatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Время обновления |
 
 **Индексы:**
 - `PRIMARY KEY (LevelID)`
@@ -198,10 +198,10 @@
 | SkillID | UUID / BIGINT | FK → SkillsCatalog(SkillID) ON DELETE CASCADE, NOT NULL | Идентификатор навыка |
 | SkillLevelID | UUID / BIGINT | FK → SkillLevels(LevelID) ON DELETE RESTRICT, NOT NULL | Идентификатор уровня |
 | IsVerified | BOOLEAN | NOT NULL, DEFAULT FALSE | Верифицирован ли навык |
-| VerifiedAt | DATETIME | NULL | Дата верификации |
+| VerifiedAt | TIMESTAMP | NULL | Дата верификации |
 | ExperienceYears | DECIMAL(3,1) | NULL, CHECK (ExperienceYears >= 0 AND ExperienceYears <= 100) | Опыт в годах |
-| CreatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата добавления |
-| UpdatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | Время обновления |
+| CreatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата добавления |
+| UpdatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Время обновления |
 
 **Индексы:**
 - `PRIMARY KEY (AccountID, SkillID)`
@@ -237,8 +237,8 @@
 | YearCompleted | INT | NULL, CHECK (YearCompleted >= 1900 AND YearCompleted <= 2100) | Год окончания (NULL если не завершено) |
 | DegreeLevel | VARCHAR(50) | NULL | Уровень: 'Bachelor', 'Master', 'PhD', 'Certificate', 'Other' |
 | IsCurrent | BOOLEAN | NOT NULL, DEFAULT FALSE | Текущее образование |
-| CreatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
-| UpdatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | Время обновления |
+| CreatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
+| UpdatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Время обновления |
 
 **Индексы:**
 - `PRIMARY KEY (EducationID)`
@@ -271,11 +271,11 @@
 | MimeType | VARCHAR(100) | NULL | MIME-тип файла |
 | Status | VARCHAR(20) | NOT NULL, DEFAULT 'Pending' | Статус: 'Pending', 'Approved', 'Rejected', 'Expired' |
 | VerifiedBy | UUID / BIGINT | FK → Accounts(AccountID) ON DELETE SET NULL, NULL | Кто верифицировал |
-| VerifiedAt | DATETIME | NULL | Дата верификации |
+| VerifiedAt | TIMESTAMP | NULL | Дата верификации |
 | RejectionReason | TEXT | NULL | Причина отклонения (если Status = 'Rejected') |
-| ExpiresAt | DATETIME | NULL | Срок действия (для временных документов) |
-| CreatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
-| UpdatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | Время обновления |
+| ExpiresAt | TIMESTAMP | NULL | Срок действия (для временных документов) |
+| CreatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
+| UpdatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Время обновления |
 
 **Индексы:**
 - `PRIMARY KEY (ProofID)`
@@ -314,11 +314,11 @@
 | Details | TEXT | NOT NULL, CHECK (LENGTH(Details) <= 5000) | Подробное описание (макс. 5000 символов) |
 | Status | VARCHAR(20) | NOT NULL, DEFAULT 'Active' | Статус: 'Active', 'Closed', 'Cancelled', 'Expired' |
 | ContactPreference | VARCHAR(50) | NULL | Предпочтительный способ связи |
-| ExpiresAt | DATETIME | NULL | Срок действия поста |
+| ExpiresAt | TIMESTAMP | NULL | Срок действия поста |
 | ViewsCount | INT | NOT NULL, DEFAULT 0 | Количество просмотров |
-| CreatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
-| UpdatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | Время обновления |
-| DeletedAt | DATETIME | NULL | Мягкое удаление |
+| CreatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
+| UpdatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Время обновления |
+| DeletedAt | TIMESTAMP | NULL | Мягкое удаление |
 
 **Индексы:**
 - `PRIMARY KEY (PostID)`
@@ -353,10 +353,10 @@
 | Status | VARCHAR(20) | NOT NULL, DEFAULT 'Pending' | Статус: 'Pending', 'InReview', 'Approved', 'Rejected', 'Cancelled' |
 | RequestMessage | TEXT | NULL | Сообщение от пользователя |
 | ReviewNotes | TEXT | NULL | Заметки проверяющего |
-| CreatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
+| CreatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Дата создания |
 | ReviewedBy | UUID / BIGINT | FK → Accounts(AccountID) ON DELETE SET NULL, NULL | Кто проверил |
-| ReviewedAt | DATETIME | NULL | Дата проверки |
-| UpdatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | Время обновления |
+| ReviewedAt | TIMESTAMP | NULL | Дата проверки |
+| UpdatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Время обновления |
 
 **Индексы:**
 - `PRIMARY KEY (RequestID)`
@@ -393,7 +393,7 @@
 | UserAgent | VARCHAR(500) | NULL | User-Agent браузера |
 | Result | VARCHAR(20) | NULL | Результат: 'Success', 'Failure', 'Error' |
 | ErrorMessage | TEXT | NULL | Сообщение об ошибке (если Result = 'Error' или 'Failure') |
-| CreatedAt | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Время события |
+| CreatedAt | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Время события |
 
 **Индексы:**
 - `PRIMARY KEY (LogID)`
