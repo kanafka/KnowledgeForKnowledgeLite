@@ -1,13 +1,29 @@
 -- ============================================
--- Скрипт инициализации базы данных
+-- Скрипт инициализации базы данных (DDL)
 -- KnowledgeForKnowledgeLite
+-- 
+-- Описание: Этот скрипт создает базу данных, все таблицы, индексы, ограничения
+-- и заполняет справочные данные (категории навыков, уровни навыков, примеры навыков).
+-- 
+-- Использование:
+-- mysql -u root -p < init_database.sql
+-- или выполнить через MySQL Workbench / клиент
+-- 
+-- Важно: Скрипт удаляет все существующие таблицы перед созданием новых!
+-- Используйте только для первоначальной установки или полного пересоздания БД.
 -- ============================================
 
 -- Создание базы данных
 CREATE DATABASE IF NOT EXISTS KnowledgeForKnowledgeLite CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- Использование созданной базы данных
 USE KnowledgeForKnowledgeLite;
 
+-- ============================================
 -- Удаление существующих таблиц (в обратном порядке зависимостей)
+-- ============================================
+-- Внимание: Это удалит все данные из таблиц!
+-- Выполняйте только при необходимости полного пересоздания БД
 DROP TABLE IF EXISTS AuditLog;
 DROP TABLE IF EXISTS VerificationRequests;
 DROP TABLE IF EXISTS SkillPosts;
@@ -373,5 +389,7 @@ INSERT INTO SkillsCatalog (SkillName, CategoryID, Description) VALUES
 ('Java Programming', (SELECT CategoryID FROM SkillCategories WHERE Name = 'Programming'), 'Программирование на Java'),
 ('English Language', (SELECT CategoryID FROM SkillCategories WHERE Name = 'Languages'), 'Английский язык'),
 ('German Language', (SELECT CategoryID FROM SkillCategories WHERE Name = 'Languages'), 'Немецкий язык');
+
+
 
 
