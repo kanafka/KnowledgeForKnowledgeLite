@@ -28,8 +28,6 @@ app.UseHttpsRedirection();
 // Простая аутентификация через header X-User-ID (для демонстрации)
 // В реальном приложении используйте JWT токены
 
- Accounts Endpoints
-
 app.MapPost("/api/accounts/register", async (
     [FromBody] CreateAccountRequest request,
     DatabaseService db) =>
@@ -125,8 +123,6 @@ app.MapDelete("/api/accounts/{accountId}", async (
 .Produces(204)
 .Produces(400);
 
- UserProfiles Endpoints
-
 app.MapGet("/api/users/{accountId}/profile", async (
     long accountId,
     DatabaseService db) =>
@@ -185,8 +181,6 @@ app.MapPut("/api/users/{accountId}/profile", async (
 .Produces(204)
 .Produces(400);
 
- UserContacts Endpoints
-
 app.MapPost("/api/users/{accountId}/contacts", async (
     long accountId,
     [FromBody] CreateUserContactRequest request,
@@ -239,8 +233,6 @@ app.MapGet("/api/users/{accountId}/contacts", async (
 .WithSummary("Получить контакты пользователя")
 .WithDescription("Возвращает список контактов пользователя. Параметр publicOnly позволяет получить только публичные контакты.")
 .Produces<List<UserContactDto>>();
-
- Skills Endpoints
 
 app.MapGet("/api/skills/categories", async (DatabaseService db) =>
 {
@@ -389,8 +381,6 @@ app.MapGet("/api/skills/{skillName}/users", async (
 .WithDescription("Ищет всех пользователей, владеющих указанным навыком. Опционально фильтрует по минимальному уровню (minLevelRank).")
 .Produces<List<UserProfileDto>>();
 
- Education Endpoints
-
 app.MapPost("/api/users/{accountId}/education", async (
     long accountId,
     [FromBody] CreateEducationRequest request,
@@ -442,8 +432,6 @@ app.MapGet("/api/users/{accountId}/education", async (
 .WithSummary("Получить образование пользователя")
 .WithDescription("Возвращает список всех записей об образовании пользователя.")
 .Produces<List<EducationDto>>();
-
- Proofs Endpoints
 
 app.MapPost("/api/users/{accountId}/proofs", async (
     long accountId,
@@ -530,8 +518,6 @@ app.MapPost("/api/proofs/{proofId}/verify", async (
 .Produces(204)
 .Produces(400)
 .Produces(401);
-
- SkillPosts Endpoints
 
 app.MapPost("/api/users/{accountId}/posts", async (
     long accountId,

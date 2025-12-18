@@ -272,8 +272,6 @@ public class DatabaseService
         await cmd.ExecuteNonQueryAsync();
     }
 
- UserContacts
-
     public async Task<long> CreateUserContactAsync(long accountId, CreateUserContactRequest request)
     {
         using var connection = new NpgsqlConnection(_connectionString);
@@ -331,8 +329,6 @@ public class DatabaseService
         
         return contacts;
     }
-
- Skills
 
     public async Task<List<SkillCategoryDto>> GetSkillCategoriesAsync()
     {
@@ -589,8 +585,6 @@ public class DatabaseService
         return users;
     }
 
- Education
-
     public async Task<long> CreateEducationAsync(long accountId, CreateEducationRequest request)
     {
         using var connection = new NpgsqlConnection(_connectionString);
@@ -647,8 +641,6 @@ public class DatabaseService
         
         return educationList;
     }
-
- Proofs
 
     public async Task<long> CreateProofAsync(long accountId, CreateProofRequest request)
     {
@@ -824,8 +816,6 @@ public class DatabaseService
         
         return proofs;
     }
-
- SkillPosts
 
     public async Task<long> CreateSkillPostAsync(long accountId, CreateSkillPostRequest request)
     {

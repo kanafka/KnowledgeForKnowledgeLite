@@ -47,7 +47,7 @@ psql -U postgres -d KnowledgeForKnowledgeLite -f Scripts/00_init_database_postgr
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5432;Database=KnowledgeForKnowledgeLite;Username=postgres;Password=ВАШ_ПАРОЛЬ;"
+    "DefaultConnection": "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres;"
   }
 ```
 
